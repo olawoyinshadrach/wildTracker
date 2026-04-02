@@ -8,36 +8,81 @@ datasource db {
 }
 
 enum Role {
- REPORTER_SELLER
+  REPORTER_SELLER 
   MEMBER 
 }
+
 enum AuthProvider {
   EMAIL
 }
 
-
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  fullName      String
-  profileImageUrl   String?
-  whatsappNumber     String?
-  additionalDetails   String?
-  password   String
-  role      Role     @default(MEMBER)
-  provider  AuthProvider @default(EMAIL)
-  city      String?
-  state     String?
-  country   String?
-  latitude  Float?
-  longitude Float?
-  refreshTokens       UserAuthRefreshToken[]
-  DeviceToken         DeviceToken?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum PrimateSpecies {
+  MONKEY
+  BABOON
+  CHIMPANZEE
+  GORILLA
+  ORANGUTAN
+  LEMUR
+  MACAQUE
+  CAPUCHIN
+  OTHER
 }
 
+enum PostType {
+  WILD_OBSERVATION
+  WILD_RESCUE 
+}
 
+enum PostStatus {
+  ACTIVE
+  RESCUED
+}
+
+enum UserInterest {
+  MONKEY
+  BABOON
+  CHIMPANZEE
+  GORILLA
+  ORANGUTAN
+  LEMUR
+  MACAQUE
+  CAPUCHIN
+  ALL_PRIMATES
+}
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  fullName          String
+  profileImageUrl   String?
+  whatsappNumber    String?
+  additionalDetails String?
+  password          String
+  role              Role     @default(MEMBER)
+  provider          AuthProvider @default(EMAIL)
+  city              String?
+  state             String?
+  country           String?
+  latitude          Float?
+  longitude         Float?
+  interests         UserInterest[]
+  isVerified        Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  refreshTokens     UserAuthRefreshToken[]
+  deviceToken       DeviceToken?
+  posts             Post[]
+  wildRescues       WildRescue[]
+  likes             Like[]
+  comments          Comment[]
+  notifications     Notification[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+}
 
 model UserAuthRefreshToken {
   id           String   @id @unique @default(cuid())
@@ -45,8 +90,9 @@ model UserAuthRefreshToken {
   expiresAt    DateTime
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
 
+  @@index([userId])
+}
 
 model DeviceToken {
   id        String   @id @unique @default(cuid())
@@ -59,3 +105,146 @@ model DeviceToken {
 
   @@index([userId])
 }
+
+model Post {
+  id          String     @id @default(cuid())
+  title       String
+  description String
+  imageUrl    String?
+  videoUrl    String?
+  liveStreamUrl String?
+  latitude    Float
+  longitude   Float
+  address     String?
+  city        String?
+  state       String?
+  country     String?
+  
+  species     PrimateSpecies
+  age         String?   
+  health      String?  
+  behavior    String? 
+  postType    PostType   @default(WILD_OBSERVATION)
+  status      PostStatus @default(ACTIVE)
+  adoptionFee Float?     // For adoption posts (simulated)
+  isUrgent    Boolean    @default(false)
+  viewCount   Int        @default(0)
+  likeCount   Int        @default(0)
+  commentCount Int       @default(0)
+  authorId    String
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes       Like[]
+  comments    Comment[]
+  wildRescues WildRescue[]
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([authorId])
+  @@index([postType])
+  @@index([status])
+  @@index([species])
+  @@index([latitude, longitude])
+  @@index([createdAt])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String?
+  commentId String?
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@index([userId])
+  @@index([postId])
+  @@index([commentId])
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  content    String
+  userId     String
+  postId     String
+  parentId   String? 
+  
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent     Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    Comment[] @relation("CommentReplies")
+  likes      Like[]
+  
+  likeCount  Int      @default(0)
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([postId])
+  @@index([parentId])
+  @@index([createdAt])
+}
+
+model WildRescue {
+  id              String   @id @default(cuid())
+  userId          String
+  postId          String
+  amount          Float
+  rescuerName     String
+  rescuerEmail    String
+  rescuerPhone    String
+  rescuerAddress  String
+  
+  idDocumentUrl   String?
+  addressProofUrl String?
+  agreementUrl    String?
+  
+  paymentMethod   String?
+  transactionId   String?
+  paymentDate     DateTime?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([postId])
+  @@index([paymentDate])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  data      Json?
+  isRead    Boolean          @default(false)
+  
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum NotificationType {
+  NEW_LIKE
+  NEW_COMMENT
+  COMMENT_REPLY
+  RESCUE_REQUEST
+  RESCUE_APPROVED
+  POST_NEARBY
+  URGENT_RESCUE
+}
+ 
